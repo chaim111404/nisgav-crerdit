@@ -147,7 +147,7 @@ width:90px;
 <div class="container">
 
 <div class="totalCard">
-סה״כ חחוב<br>
+סה״כ חוב<br>
 <div class="totalNumber">₪<span id="total">0</span></div>
 </div>
 
@@ -159,7 +159,7 @@ width:90px;
 <div class="recent" id="recent"></div>
 
 <label>סכום</label>
-<input id="amount" readonly onclick="openKeyboard('amount')">
+<input id="amount" readonly onclick="handleAmountInputClick('amount')">
 
 <label>מטבע</label>
 <select id="currency" onclick="closeKeyboard()">
@@ -213,7 +213,7 @@ width:90px;
 
 <input id="editName">
 
-<input id="editAmount" readonly onclick="openKeyboard('editAmount')">
+<input id="editAmount" readonly onclick="handleAmountInputClick('editAmount')">
 
 <select id="editCurrency">
 <option value="ILS">₪ שקל</option>
@@ -466,7 +466,25 @@ clearInterval(interval)
 
 }
 
+function isMobileDevice(){
+return window.matchMedia("(pointer:coarse)").matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+}
+
+function handleAmountInputClick(inputId){
+
+if(isMobileDevice()){
+openKeyboard(inputId)
+}else{
+closeKeyboard()
+}
+
+}
+
 function openKeyboard(inputId){
+
+if(!isMobileDevice()){
+return
+}
 
 activeInput=inputId
 
@@ -508,6 +526,94 @@ input.value+=k
 
 }
 
+function sanitizeAmountValue(value){
+
+value=value.replace(/[^0-9.]/g,"")
+
+let parts=value.split(".")
+
+if(parts.length>2){
+value=parts[0]+"."+parts.slice(1).join("")
+}
+
+return value
+
+}
+
+function allowOnlyAmountKeys(e){
+
+const allowedKeys=[
+"Backspace",
+"Delete",
+"ArrowLeft",
+"ArrowRight",
+"ArrowUp",
+"ArrowDown",
+"Tab",
+"Home",
+"End",
+"Enter"
+]
+
+if(allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey){
+return
+}
+
+if((e.key>="0" && e.key<="9") || e.key==="."){
+return
+}
+
+e.preventDefault()
+
+}
+
+function setupDesktopAmountInputs(){
+
+const amountIds=["amount","editAmount"]
+
+amountIds.forEach(id=>{
+
+let input=document.getElementById(id)
+
+if(!input)return
+
+if(isMobileDevice()){
+input.setAttribute("readonly","readonly")
+}else{
+input.removeAttribute("readonly")
+}
+
+input.addEventListener("keydown",function(e){
+
+if(isMobileDevice())return
+
+allowOnlyAmountKeys(e)
+
+})
+
+input.addEventListener("input",function(){
+
+if(isMobileDevice())return
+
+this.value=sanitizeAmountValue(this.value)
+
+})
+
+input.addEventListener("paste",function(e){
+
+if(isMobileDevice())return
+
+e.preventDefault()
+
+let pasted=(e.clipboardData || window.clipboardData).getData("text")
+this.value=sanitizeAmountValue(this.value + pasted)
+
+})
+
+})
+
+}
+
 document.addEventListener("click",function(e){
 
 let kb=document.getElementById("keyboard")
@@ -518,6 +624,7 @@ closeKeyboard()
 
 })
 
+setupDesktopAmountInputs()
 render()
 
 </script>
