@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Debt Manager</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#0a0f18;
+color:white;
+}
+
+.container{
+max-width:900px;
+margin:auto;
+padding:20px;
+}
+
+.totalCard{
+background:linear-gradient(135deg,#0f1f2f,#09141f);
+border:1px solid #00ffe5;
+padding:25px;
+border-radius:14px;
+text-align:center;
+margin-bottom:20px;
+box-shadow:0 0 25px #00ffe550;
+}
+
+.totalNumber{
+font-size:42px;
+font-weight:bold;
+color:#00ffe5;
+}
+
+.card{
+background:#111827;
+border-radius:12px;
+padding:18px;
+margin-bottom:20px;
+border:1px solid #1f2937;
+}
+
+input,select{
+width:100%;
+padding:10px;
+border-radius:8px;
+border:none;
+margin-top:6px;
+margin-bottom:12px;
+font-size:16px;
+}
+
+button{
+background:#00ffe5;
+border:none;
+padding:12px;
+border-radius:8px;
+cursor:pointer;
+font-weight:bold;
+}
+
+button:hover{
+background:#00c8b4;
+}
+
+.charge{
+background:#0f172a;
+padding:10px;
+border-radius:8px;
+margin-bottom:8px;
+display:flex;
+justify-content:space-between;
+}
+
+.actions button{
+background:#1f2937;
+margin-left:6px;
+}
+
+.recent button{
+background:#1f2937;
+margin:4px;
+}
+
+.keyboard{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+background:#020617;
+padding:10px;
+display:none;
+grid-template-columns:repeat(3,1fr);
+gap:8px;
+}
+
+.key{
+background:#111827;
+padding:16px;
+text-align:center;
+border-radius:8px;
+font-size:20px;
+}
+
+.graphBar{
+height:14px;
+background:#00ffe5;
+margin-top:4px;
+border-radius:6px;
+}
+
+.popupOverlay{
+position:fixed;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:#000000aa;
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+.popup{
+background:#111827;
+padding:20px;
+border-radius:10px;
+text-align:center;
+min-width:250px;
+}
+
+.popup button{
+margin:8px;
+width:90px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="totalCard">
+סה״כ חוב<br>
+<div class="totalNumber">₪<span id="total">0</span></div>
+</div>
+
+<div class="card">
+
+<label>שם חיוב</label>
+<input id="name">
+
+<div class="recent" id="recent"></div>
+
+<label>סכום</label>
+<input id="amount" readonly onclick="openKeyboard('amount')">
+
+<label>מטבע</label>
+<select id="currency" onclick="closeKeyboard()">
+<option value="ILS">₪ שקל</option>
+<option value="USD">$ דולר</option>
+<option value="EUR">€ אירו</option>
+<option value="INR">₹ רופי</option>
+</select>
+
+<button onclick="addCharge();closeKeyboard()">הוסף חיוב</button>
+
+</div>
+
+<div class="card">
+<h3>חיובים</h3>
+<div id="charges"></div>
+</div>
+
+<div class="card">
+<h3>גרף הוצאות</h3>
+<div id="graph"></div>
+</div>
+
+<div class="card">
+<h3>סיכום מטבעות</h3>
+<div id="summary"></div>
+</div>
+
+<button onclick="resetData()">איפוס נתונים</button>
+
+</div>
+
+<div class="keyboard" id="keyboard"></div>
+
+<!-- popup delete -->
+
+<div class="popupOverlay" id="popup">
+<div class="popup">
+<div>האם אתה בטוח שברצונך למחוק את החיוב?</div>
+<button onclick="confirmDelete()">כן</button>
+<button onclick="closePopup()">לא</button>
+</div>
+</div>
+
+<!-- popup edit -->
+
+<div class="popupOverlay" id="editPopup">
+<div class="popup">
+
+<h3>עריכת חיוב</h3>
+
+<input id="editName">
+
+<input id="editAmount" readonly onclick="openKeyboard('editAmount')">
+
+<select id="editCurrency">
+<option value="ILS">₪ שקל</option>
+<option value="USD">$ דולר</option>
+<option value="EUR">€ אירו</option>
+<option value="INR">₹ רופי</option>
+</select>
+
+<button onclick="saveEdit()">שמור</button>
+<button onclick="closeEdit()">בטל</button>
+
+</div>
+</div>
+
+<script>
+
+const rates={
+USD:3.09,
+EUR:3.60,
+INR:0.034,
+ILS:1
+}
+
+let charges=JSON.parse(localStorage.getItem("charges")||"[]")
+let recent=JSON.parse(localStorage.getItem("recent")||"[]")
+
+let deleteIndex=null
+let editIndex=null
+let activeInput=null
+
+function save(){
+localStorage.setItem("charges",JSON.stringify(charges))
+localStorage.setItem("recent",JSON.stringify(recent))
+}
+
+function addCharge(){
+
+let name=document.getElementById("name").value
+let amount=parseFloat(document.getElementById("amount").value)
+let currency=document.getElementById("currency").value
+
+if(!name||!amount)return
+
+charges.push({name,amount,currency})
+
+if(!recent.includes(name)){
+recent.unshift(name)
+recent=recent.slice(0,5)
+}
+
+save()
+
+document.getElementById("name").value=""
+document.getElementById("amount").value=""
+
+render()
+
+}
+
+function render(){
+
+let list=document.getElementById("charges")
+list.innerHTML=""
+
+let total=0
+let currencySummary={ILS:0,USD:0,EUR:0,INR:0}
+
+charges.forEach((c,i)=>{
+
+let ils=c.amount*rates[c.currency]
+
+total+=ils
+currencySummary[c.currency]+=c.amount
+
+let div=document.createElement("div")
+div.className="charge"
+
+div.innerHTML=`
+<div>
+<b>${c.name}</b><br>
+${c.amount} ${c.currency} → ₪${ils.toFixed(2)}
+</div>
+
+<div class="actions">
+<button onclick="openEdit(${i})">✏️</button>
+<button onclick="askDelete(${i})">🗑</button>
+</div>
+`
+
+list.appendChild(div)
+
+})
+
+animateTotal(total)
+renderSummary(currencySummary)
+renderGraph()
+renderRecent()
+
+}
+
+function renderSummary(s){
+
+document.getElementById("summary").innerHTML=`
+
+ILS ₪${s.ILS}<br>
+USD $${s.USD}<br>
+EUR €${s.EUR}<br>
+INR ₹${s.INR}
+
+`
+
+}
+
+function renderGraph(){
+
+let data={}
+
+charges.forEach(c=>{
+let ils=c.amount*rates[c.currency]
+data[c.name]=(data[c.name]||0)+ils
+})
+
+let graph=document.getElementById("graph")
+graph.innerHTML=""
+
+for(let k in data){
+
+let bar=document.createElement("div")
+
+bar.innerHTML=`
+${k}
+<div class="graphBar" style="width:${Math.min(data[k],300)}px"></div>
+`
+
+graph.appendChild(bar)
+
+}
+
+}
+
+function renderRecent(){
+
+let div=document.getElementById("recent")
+div.innerHTML=""
+
+recent.forEach(r=>{
+let b=document.createElement("button")
+b.innerText=r
+b.onclick=()=>document.getElementById("name").value=r
+div.appendChild(b)
+})
+
+}
+
+function askDelete(i){
+
+deleteIndex=i
+document.getElementById("popup").style.display="flex"
+
+}
+
+function confirmDelete(){
+
+charges.splice(deleteIndex,1)
+
+save()
+render()
+
+closePopup()
+
+}
+
+function closePopup(){
+
+document.getElementById("popup").style.display="none"
+
+}
+
+function openEdit(i){
+
+editIndex=i
+
+let c=charges[i]
+
+document.getElementById("editName").value=c.name
+document.getElementById("editAmount").value=c.amount
+document.getElementById("editCurrency").value=c.currency
+
+document.getElementById("editPopup").style.display="flex"
+
+}
+
+function saveEdit(){
+
+let name=document.getElementById("editName").value
+let amount=parseFloat(document.getElementById("editAmount").value)
+let currency=document.getElementById("editCurrency").value
+
+charges[editIndex]={name,amount,currency}
+
+save()
+render()
+
+closeEdit()
+
+}
+
+function closeEdit(){
+
+document.getElementById("editPopup").style.display="none"
+
+}
+
+function resetData(){
+
+if(confirm("למחוק הכל?")){
+
+charges=[]
+recent=[]
+save()
+render()
+
+}
+
+}
+
+function animateTotal(newTotal){
+
+let el=document.getElementById("total")
+let current=parseFloat(el.innerText)||0
+
+let step=(newTotal-current)/25
+let i=0
+
+let interval=setInterval(()=>{
+
+current+=step
+el.innerText=current.toFixed(2)
+
+i++
+
+if(i>25){
+
+el.innerText=newTotal.toFixed(2)
+clearInterval(interval)
+
+}
+
+},20)
+
+}
+
+function openKeyboard(inputId){
+
+activeInput=inputId
+
+let kb=document.getElementById("keyboard")
+
+kb.style.display="grid"
+
+kb.innerHTML=""
+
+let keys=["7","8","9","4","5","6","1","2","3","0",".","⌫"]
+
+keys.forEach(k=>{
+
+let d=document.createElement("div")
+d.className="key"
+d.innerText=k
+
+d.onclick=()=>pressKey(k)
+
+kb.appendChild(d)
+
+})
+
+}
+
+function closeKeyboard(){
+document.getElementById("keyboard").style.display="none"
+}
+
+function pressKey(k){
+
+let input=document.getElementById(activeInput)
+
+if(k==="⌫"){
+input.value=input.value.slice(0,-1)
+}else{
+input.value+=k
+}
+
+}
+
+document.addEventListener("click",function(e){
+
+let kb=document.getElementById("keyboard")
+
+if(kb.style.display==="grid" && !kb.contains(e.target) && !e.target.hasAttribute("readonly")){
+closeKeyboard()
+}
+
+})
+
+render()
+
+</script>
+
+</body>
+</html>
