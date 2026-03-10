@@ -261,6 +261,23 @@ color:#9ca3af;
 margin-top:8px;
 }
 
+.loadMoreWrap{
+text-align:center;
+margin-top:12px;
+}
+
+.loadMoreButton{
+background:#1f2937;
+color:#ffffff;
+border:1px solid #00ffe5;
+box-shadow:0 0 14px rgba(0,255,229,0.12);
+transition:0.2s;
+}
+
+.loadMoreButton:hover{
+background:#243244;
+}
+
 #errorPopup .popup{
 border:1px solid #ef4444;
 box-shadow:0 0 25px rgba(239,68,68,0.22);
@@ -324,12 +341,12 @@ justify-content:flex-start;
 <div class="searchWrap">
 <div>
 <label>חיפוש חכם</label>
-<input id="searchInput" placeholder="חפש שם, סכום, מטבע..." oninput="render()">
+<input id="searchInput" placeholder="חפש שם, סכום, מטבע..." oninput="resetVisibleChargesAndRender()">
 </div>
 
 <div>
 <label>סינון מטבע</label>
-<select id="filterCurrency" onclick="closeKeyboard()" onchange="render()">
+<select id="filterCurrency" onclick="closeKeyboard()" onchange="resetVisibleChargesAndRender()">
 <option value="ALL">הכל</option>
 <option value="ILS">₪ שקל</option>
 <option value="USD">$ דולר</option>
@@ -444,6 +461,7 @@ let recent=JSON.parse(localStorage.getItem("recent")||"[]")
 let deleteIndex=null
 let editIndex=null
 let activeInput=null
+let visibleChargesCount=10
 
 function save(){
 localStorage.setItem("charges",JSON.stringify(charges))
@@ -524,6 +542,7 @@ save()
 document.getElementById("name").value=""
 document.getElementById("amount").value=""
 document.getElementById("currency").value="ILS"
+visibleChargesCount=10
 
 render()
 
@@ -548,6 +567,16 @@ return matchesSearch(c,searchValue)
 
 })
 
+}
+
+function resetVisibleChargesAndRender(){
+visibleChargesCount=10
+render()
+}
+
+function loadMoreCharges(){
+visibleChargesCount+=10
+render()
 }
 
 function normalizeText(value){
@@ -648,11 +677,12 @@ currencySummary[c.currency]+=c.amount
 })
 
 let filteredCharges=getSmartFilteredCharges()
+let visibleCharges=filteredCharges.slice(0,visibleChargesCount)
 
 if(filteredCharges.length===0){
 list.innerHTML=`<div class="noResults">אין תוצאות</div>`
 }else{
-filteredCharges.forEach(c=>{
+visibleCharges.forEach(c=>{
 
 let originalIndex=charges.indexOf(c)
 let ils=c.amount*rates[c.currency]
@@ -675,6 +705,13 @@ ${normalizeDisplayAmount(c.amount)} ${c.currency} → ₪${ils.toFixed(2)}
 list.appendChild(div)
 
 })
+
+if(filteredCharges.length>visibleChargesCount){
+let loadMore=document.createElement("div")
+loadMore.className="loadMoreWrap"
+loadMore.innerHTML=`<button class="loadMoreButton" onclick="loadMoreCharges()">טען עוד</button>`
+list.appendChild(loadMore)
+}
 }
 
 animateTotal(total)
@@ -959,6 +996,7 @@ if(confirm("למחוק הכל?")){
 
 charges=[]
 recent=[]
+visibleChargesCount=10
 save()
 render()
 
