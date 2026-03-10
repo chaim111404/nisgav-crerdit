@@ -161,6 +161,8 @@ width:90px;
 <label>סכום</label>
 <input id="amount" readonly onclick="handleAmountInputClick('amount')">
 
+<div class="recent" id="amountPresets"></div>
+
 <label>מטבע</label>
 <select id="currency" onclick="closeKeyboard()">
 <option value="ILS">₪ שקל</option>
@@ -312,6 +314,7 @@ animateTotal(total)
 renderSummary(currencySummary)
 renderGraph()
 renderRecent()
+renderAmountPresets()
 
 }
 
@@ -363,8 +366,72 @@ div.innerHTML=""
 recent.forEach(r=>{
 let b=document.createElement("button")
 b.innerText=r
-b.onclick=()=>document.getElementById("name").value=r
+b.onclick=()=>{
+document.getElementById("name").value=r
+renderAmountPresets()
+}
 div.appendChild(b)
+})
+
+}
+
+function getFrequentAmountPresetsByName(chargeName){
+
+let map={}
+
+charges.forEach(c=>{
+
+if(c.name!==chargeName)return
+
+let key=`${c.amount}__${c.currency}`
+
+if(!map[key]){
+map[key]={
+amount:c.amount,
+currency:c.currency,
+count:0
+}
+}
+
+map[key].count++
+
+})
+
+return Object.values(map).filter(item=>item.count>3)
+
+}
+
+function renderAmountPresets(){
+
+let box=document.getElementById("amountPresets")
+let name=document.getElementById("name").value
+
+box.innerHTML=""
+
+if(!name)return
+
+let presets=getFrequentAmountPresetsByName(name)
+
+if(!presets.length)return
+
+presets.forEach(p=>{
+
+let b=document.createElement("button")
+b.type="button"
+b.innerText=`${p.amount} ${p.currency}`
+
+b.onclick=()=>{
+
+document.getElementById("amount").value=p.amount
+document.getElementById("currency").value=p.currency
+
+addCharge()
+closeKeyboard()
+
+}
+
+box.appendChild(b)
+
 })
 
 }
@@ -624,6 +691,8 @@ closeKeyboard()
 }
 
 })
+
+document.getElementById("name").addEventListener("input",renderAmountPresets)
 
 setupDesktopAmountInputs()
 render()
