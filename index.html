@@ -53,6 +53,7 @@ border:none;
 margin-top:6px;
 margin-bottom:12px;
 font-size:16px;
+box-sizing:border-box;
 }
 
 button{
@@ -75,6 +76,7 @@ border-radius:8px;
 margin-bottom:8px;
 display:flex;
 justify-content:space-between;
+gap:10px;
 }
 
 .actions button{
@@ -97,6 +99,7 @@ padding:10px;
 display:none;
 grid-template-columns:repeat(3,1fr);
 gap:8px;
+z-index:30;
 }
 
 .key{
@@ -112,6 +115,7 @@ height:14px;
 background:#00ffe5;
 margin-top:4px;
 border-radius:6px;
+transition:0.25s;
 }
 
 .popupOverlay{
@@ -124,6 +128,9 @@ background:#000000aa;
 display:none;
 align-items:center;
 justify-content:center;
+z-index:50;
+padding:15px;
+box-sizing:border-box;
 }
 
 .popup{
@@ -132,11 +139,149 @@ padding:20px;
 border-radius:10px;
 text-align:center;
 min-width:250px;
+max-width:420px;
+width:100%;
+border:1px solid #1f2937;
+box-shadow:0 0 25px #00000080;
 }
 
 .popup button{
 margin:8px;
 width:90px;
+}
+
+.popupTitle{
+font-size:22px;
+font-weight:bold;
+margin-bottom:10px;
+}
+
+.popupSubText{
+font-size:14px;
+color:#b6c2d1;
+line-height:1.6;
+word-break:break-word;
+}
+
+.popupList{
+text-align:right;
+margin-top:14px;
+max-height:240px;
+overflow:auto;
+background:#0f172a;
+padding:10px;
+border-radius:8px;
+}
+
+.popupListItem{
+padding:8px 0;
+border-bottom:1px solid #1f2937;
+font-size:14px;
+}
+
+.popupListItem:last-child{
+border-bottom:none;
+}
+
+.searchWrap{
+display:grid;
+grid-template-columns:1fr 180px;
+gap:10px;
+}
+
+.noResults{
+background:#0f172a;
+padding:14px;
+border-radius:8px;
+text-align:center;
+color:#b6c2d1;
+}
+
+.categoryRow{
+background:#0f172a;
+padding:12px;
+border-radius:8px;
+margin-bottom:8px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:10px;
+cursor:pointer;
+border:1px solid transparent;
+transition:0.2s;
+}
+
+.categoryRow:hover{
+border-color:#00ffe5;
+}
+
+.categoryName{
+font-weight:bold;
+word-break:break-word;
+}
+
+.categoryAmount{
+font-weight:bold;
+white-space:nowrap;
+}
+
+.mutedText{
+font-size:13px;
+color:#9ca3af;
+margin-top:4px;
+}
+
+.greenGlow{
+box-shadow:0 0 14px rgba(16,185,129,0.18);
+}
+
+.yellowGlow{
+box-shadow:0 0 14px rgba(245,158,11,0.18);
+}
+
+.redGlow{
+box-shadow:0 0 14px rgba(239,68,68,0.18);
+}
+
+.summaryLine{
+margin-bottom:8px;
+}
+
+.graphTotalsTop{
+font-size:15px;
+font-weight:bold;
+color:#ffffff;
+margin-bottom:8px;
+word-break:break-word;
+}
+
+.graphTotalsBottom{
+font-size:13px;
+color:#9ca3af;
+margin-top:8px;
+}
+
+#errorPopup .popup{
+border:1px solid #ef4444;
+box-shadow:0 0 25px rgba(239,68,68,0.22);
+background:linear-gradient(135deg,#1f0b0b,#111827);
+}
+
+#errorPopup .popupTitle{
+color:#ef4444;
+}
+
+@media(max-width:640px){
+.searchWrap{
+grid-template-columns:1fr;
+}
+.charge{
+flex-direction:column;
+}
+.actions{
+display:flex;
+justify-content:flex-start;
+}
 }
 
 </style>
@@ -161,8 +306,6 @@ width:90px;
 <label>סכום</label>
 <input id="amount" readonly onclick="handleAmountInputClick('amount')">
 
-<div class="recent" id="amountPresets"></div>
-
 <label>מטבע</label>
 <select id="currency" onclick="closeKeyboard()">
 <option value="ILS">₪ שקל</option>
@@ -176,6 +319,28 @@ width:90px;
 </div>
 
 <div class="card">
+<h3>חיפוש וסינון</h3>
+
+<div class="searchWrap">
+<div>
+<label>חיפוש חכם</label>
+<input id="searchInput" placeholder="חפש שם, סכום, מטבע..." oninput="render()">
+</div>
+
+<div>
+<label>סינון מטבע</label>
+<select id="filterCurrency" onclick="closeKeyboard()" onchange="render()">
+<option value="ALL">הכל</option>
+<option value="ILS">₪ שקל</option>
+<option value="USD">$ דולר</option>
+<option value="EUR">€ אירו</option>
+<option value="INR">₹ רופי</option>
+</select>
+</div>
+</div>
+</div>
+
+<div class="card">
 <h3>חיובים</h3>
 <div id="charges"></div>
 </div>
@@ -183,6 +348,11 @@ width:90px;
 <div class="card">
 <h3>גרף הוצאות</h3>
 <div id="graph"></div>
+</div>
+
+<div class="card">
+<h3>סיכום לפי שם חיוב</h3>
+<div id="categorySummary"></div>
 </div>
 
 <div class="card">
@@ -200,7 +370,8 @@ width:90px;
 
 <div class="popupOverlay" id="popup">
 <div class="popup">
-<div>האם אתה בטוח שברצונך למחוק את החיוב?</div>
+<div class="popupTitle">האם אתה בטוח שברצונך למחוק את החיוב?</div>
+<div class="popupSubText" id="deleteChargeDetails"></div>
 <button onclick="confirmDelete()">כן</button>
 <button onclick="closePopup()">לא</button>
 </div>
@@ -230,13 +401,41 @@ width:90px;
 </div>
 </div>
 
+<!-- popup error -->
+
+<div class="popupOverlay" id="errorPopup">
+<div class="popup">
+<div class="popupTitle">שגיאה</div>
+<div class="popupSubText" id="errorText"></div>
+<button onclick="closeErrorPopup()">סגור</button>
+</div>
+</div>
+
+<!-- popup category details -->
+
+<div class="popupOverlay" id="categoryPopup">
+<div class="popup">
+<div class="popupTitle" id="categoryPopupTitle">פירוט קטגוריה</div>
+<div class="popupSubText" id="categoryPopupSummary"></div>
+<div class="popupList" id="categoryPopupList"></div>
+<button onclick="closeCategoryPopup()">סגור</button>
+</div>
+</div>
+
 <script>
 
 const rates={
-USD:3.08,
-EUR:3.58,
+USD:3.09,
+EUR:3.60,
 INR:0.034,
 ILS:1
+}
+
+const currencySymbols={
+ILS:"₪",
+USD:"$",
+EUR:"€",
+INR:"₹"
 }
 
 let charges=JSON.parse(localStorage.getItem("charges")||"[]")
@@ -251,13 +450,67 @@ localStorage.setItem("charges",JSON.stringify(charges))
 localStorage.setItem("recent",JSON.stringify(recent))
 }
 
+function showError(message){
+document.getElementById("errorText").innerText=message
+document.getElementById("errorPopup").style.display="flex"
+}
+
+function closeErrorPopup(){
+document.getElementById("errorPopup").style.display="none"
+}
+
+function formatOriginalChargeText(charge){
+return `${charge.name} ${normalizeDisplayAmount(charge.amount)} ${currencySymbols[charge.currency]||charge.currency}`
+}
+
+function normalizeDisplayAmount(value){
+let num=parseFloat(value)
+if(Number.isNaN(num))return value
+return num.toString()
+}
+
+function getAddChargeValidationMessage(){
+
+let name=document.getElementById("name").value.trim()
+let amountValue=document.getElementById("amount").value.trim()
+let amount=parseFloat(amountValue)
+
+let missingFields=[]
+
+if(!name){
+missingFields.push("שם חיוב")
+}
+
+if(!amountValue){
+missingFields.push("סכום")
+}
+
+if(missingFields.length===2){
+return "לא ניתן להוסיף חיוב כי לא הוזנו השדות הבאים: שם חיוב, סכום."
+}
+
+if(missingFields.length===1){
+return `לא ניתן להוסיף חיוב כי לא הוזן השדה: ${missingFields[0]}.`
+}
+
+if(Number.isNaN(amount)){
+return "לא ניתן להוסיף חיוב כי הסכום שהוזן אינו תקין."
+}
+
+return ""
+}
+
 function addCharge(){
 
-let name=document.getElementById("name").value
+let name=document.getElementById("name").value.trim()
 let amount=parseFloat(document.getElementById("amount").value)
 let currency=document.getElementById("currency").value
+let validationMessage=getAddChargeValidationMessage()
 
-if(!name||!amount)return
+if(validationMessage){
+showError(validationMessage)
+return
+}
 
 charges.push({name,amount,currency})
 
@@ -276,6 +529,110 @@ render()
 
 }
 
+function getSmartFilteredCharges(){
+
+let searchValue=document.getElementById("searchInput").value.trim()
+let filterCurrency=document.getElementById("filterCurrency").value
+
+return charges.filter(c=>{
+
+if(filterCurrency!=="ALL" && c.currency!==filterCurrency){
+return false
+}
+
+if(!searchValue){
+return true
+}
+
+return matchesSearch(c,searchValue)
+
+})
+
+}
+
+function normalizeText(value){
+return String(value||"")
+.toLowerCase()
+.trim()
+.replace(/\s+/g," ")
+.replace(/[₪$€₹]/g,"")
+}
+
+function normalizeCompactText(value){
+return normalizeText(value).replace(/\s+/g,"")
+}
+
+function matchesSearch(charge,searchValue){
+
+let q=normalizeText(searchValue)
+let qCompact=normalizeCompactText(searchValue)
+
+let name=normalizeText(charge.name)
+let nameCompact=normalizeCompactText(charge.name)
+
+let symbol=currencySymbols[charge.currency]||charge.currency
+let currencyText=normalizeText(`${charge.currency} ${symbol}`)
+let amountText=String(parseFloat(charge.amount))
+let amountFixedOne=Number.isFinite(parseFloat(charge.amount)) ? parseFloat(charge.amount).toFixed(1) : ""
+let amountFixedTwo=Number.isFinite(parseFloat(charge.amount)) ? parseFloat(charge.amount).toFixed(2) : ""
+let ilsValue=(charge.amount*rates[charge.currency]).toFixed(2)
+let combined=normalizeText(`${charge.name} ${charge.currency} ${symbol} ${amountText} ${amountFixedOne} ${amountFixedTwo} ${ilsValue}`)
+
+if(name.includes(q) || nameCompact.includes(qCompact)){
+return true
+}
+
+if(currencyText.includes(q)){
+return true
+}
+
+if(combined.includes(q)){
+return true
+}
+
+if(amountText===q || amountFixedOne===q || amountFixedTwo===q){
+return true
+}
+
+if(isLooseFuzzyMatch(nameCompact,qCompact)){
+return true
+}
+
+return false
+}
+
+function isLooseFuzzyMatch(text,query){
+
+if(!query || query.length<3){
+return false
+}
+
+if(text.includes(query)){
+return true
+}
+
+let matchedChars=0
+let textIndex=0
+
+for(let i=0;i<query.length;i++){
+let found=false
+while(textIndex<text.length){
+if(query[i]===text[textIndex]){
+matchedChars++
+textIndex++
+found=true
+break
+}
+textIndex++
+}
+if(!found){
+continue
+}
+}
+
+return matchedChars>=Math.max(3,query.length-1)
+}
+
 function render(){
 
 let list=document.getElementById("charges")
@@ -284,12 +641,21 @@ list.innerHTML=""
 let total=0
 let currencySummary={ILS:0,USD:0,EUR:0,INR:0}
 
-charges.forEach((c,i)=>{
-
+charges.forEach(c=>{
 let ils=c.amount*rates[c.currency]
-
 total+=ils
 currencySummary[c.currency]+=c.amount
+})
+
+let filteredCharges=getSmartFilteredCharges()
+
+if(filteredCharges.length===0){
+list.innerHTML=`<div class="noResults">אין תוצאות</div>`
+}else{
+filteredCharges.forEach(c=>{
+
+let originalIndex=charges.indexOf(c)
+let ils=c.amount*rates[c.currency]
 
 let div=document.createElement("div")
 div.className="charge"
@@ -297,65 +663,203 @@ div.className="charge"
 div.innerHTML=`
 <div>
 <b>${c.name}</b><br>
-${c.amount} ${c.currency} → ₪${ils.toFixed(2)}
+${normalizeDisplayAmount(c.amount)} ${c.currency} → ₪${ils.toFixed(2)}
 </div>
 
 <div class="actions">
-<button onclick="openEdit(${i})">✏️</button>
-<button onclick="askDelete(${i})">🗑</button>
+<button onclick="openEdit(${originalIndex})">✏️</button>
+<button onclick="askDelete(${originalIndex})">🗑</button>
 </div>
 `
 
 list.appendChild(div)
 
 })
+}
 
 animateTotal(total)
 renderSummary(currencySummary)
-renderGraph()
+renderGraph(filteredCharges)
 renderRecent()
-renderAmountPresets()
+renderCategorySummary()
 
 }
 
 function renderSummary(s){
 
 document.getElementById("summary").innerHTML=`
-
-ILS ₪${s.ILS}<br>
-USD $${s.USD}<br>
-EUR €${s.EUR}<br>
-INR ₹${s.INR}
-
+<div class="summaryLine">ILS ₪${normalizeDisplayAmount(s.ILS)}</div>
+<div class="summaryLine">USD $${normalizeDisplayAmount(s.USD)}</div>
+<div class="summaryLine">EUR €${normalizeDisplayAmount(s.EUR)}</div>
+<div class="summaryLine">INR ₹${normalizeDisplayAmount(s.INR)}</div>
 `
 
 }
 
-function renderGraph(){
+function getCategoryMap(dataSource){
 
 let data={}
 
-charges.forEach(c=>{
+dataSource.forEach(c=>{
 let ils=c.amount*rates[c.currency]
-data[c.name]=(data[c.name]||0)+ils
+if(!data[c.name]){
+data[c.name]={
+ilsTotal:0,
+count:0,
+items:[],
+currencyTotals:{
+ILS:0,
+USD:0,
+EUR:0,
+INR:0
+}
+}
+}
+data[c.name].ilsTotal+=ils
+data[c.name].count++
+data[c.name].items.push(c)
+data[c.name].currencyTotals[c.currency]+=c.amount
 })
 
+return data
+
+}
+
+function getCategoryColorClass(value,maxValue){
+
+if(maxValue<=0){
+return "greenGlow"
+}
+
+let ratio=value/maxValue
+
+if(ratio>=0.66){
+return "redGlow"
+}
+
+if(ratio>=0.33){
+return "yellowGlow"
+}
+
+return "greenGlow"
+}
+
+function getCategoryCurrenciesText(currencyTotals){
+
+let parts=[]
+
+Object.keys(currencyTotals).forEach(currency=>{
+let amount=currencyTotals[currency]
+if(amount>0){
+parts.push(`${currencySymbols[currency]||currency}${normalizeDisplayAmount(amount)}`)
+}
+})
+
+return parts.join(" | ")
+
+}
+
+function renderGraph(filteredCharges){
+
+let data=getCategoryMap(filteredCharges)
 let graph=document.getElementById("graph")
 graph.innerHTML=""
+
+let names=Object.keys(data)
+
+if(names.length===0){
+graph.innerHTML=`<div class="noResults">אין תוצאות</div>`
+return
+}
+
+let maxValue=Math.max(...names.map(name=>data[name].ilsTotal),1)
 
 for(let k in data){
 
 let bar=document.createElement("div")
+let widthPercent=(data[k].ilsTotal/maxValue)*100
+let colorClass=getCategoryColorClass(data[k].ilsTotal,maxValue)
+let categoryCurrenciesText=getCategoryCurrenciesText(data[k].currencyTotals)
 
 bar.innerHTML=`
-${k}
-<div class="graphBar" style="width:${Math.min(data[k],300)}px"></div>
+<div class="${colorClass}" style="background:#0f172a;padding:10px;border-radius:8px;margin-bottom:8px;">
+<div><b>${k}</b></div>
+<div class="graphTotalsTop">${categoryCurrenciesText}</div>
+<div class="graphBar" style="width:${Math.max(widthPercent,8)}%"></div>
+<div class="graphTotalsBottom">סה״כ בשקלים: ₪${data[k].ilsTotal.toFixed(2)}</div>
+</div>
 `
 
 graph.appendChild(bar)
 
 }
 
+}
+
+function renderCategorySummary(){
+
+let wrap=document.getElementById("categorySummary")
+wrap.innerHTML=""
+
+let data=getCategoryMap(charges)
+let names=Object.keys(data)
+
+if(names.length===0){
+wrap.innerHTML=`<div class="noResults">אין נתונים</div>`
+return
+}
+
+let sortedNames=names.sort((a,b)=>data[b].ilsTotal-data[a].ilsTotal)
+let maxValue=Math.max(...sortedNames.map(name=>data[name].ilsTotal),1)
+
+sortedNames.forEach(name=>{
+
+let row=document.createElement("div")
+row.className=`categoryRow ${getCategoryColorClass(data[name].ilsTotal,maxValue)}`
+row.onclick=()=>openCategoryDetails(name)
+
+row.innerHTML=`
+<div>
+<div class="categoryName">${name}</div>
+<div class="mutedText">${data[name].count} חיובים</div>
+</div>
+<div class="categoryAmount">₪${data[name].ilsTotal.toFixed(2)}</div>
+`
+
+wrap.appendChild(row)
+
+})
+
+}
+
+function openCategoryDetails(name){
+
+let related=charges.filter(c=>c.name===name)
+let totalIls=0
+
+related.forEach(c=>{
+totalIls+=c.amount*rates[c.currency]
+})
+
+document.getElementById("categoryPopupTitle").innerText=`פירוט: ${name}`
+document.getElementById("categoryPopupSummary").innerText=`סה״כ בקטגוריה: ₪${totalIls.toFixed(2)} | מספר חיובים: ${related.length}`
+
+let list=document.getElementById("categoryPopupList")
+list.innerHTML=""
+
+related.forEach(c=>{
+let item=document.createElement("div")
+item.className="popupListItem"
+item.innerHTML=`${normalizeDisplayAmount(c.amount)} ${currencySymbols[c.currency]||c.currency} <span class="mutedText">→ ₪${(c.amount*rates[c.currency]).toFixed(2)}</span>`
+list.appendChild(item)
+})
+
+document.getElementById("categoryPopup").style.display="flex"
+
+}
+
+function closeCategoryPopup(){
+document.getElementById("categoryPopup").style.display="none"
 }
 
 function renderRecent(){
@@ -366,72 +870,8 @@ div.innerHTML=""
 recent.forEach(r=>{
 let b=document.createElement("button")
 b.innerText=r
-b.onclick=()=>{
-document.getElementById("name").value=r
-renderAmountPresets()
-}
+b.onclick=()=>document.getElementById("name").value=r
 div.appendChild(b)
-})
-
-}
-
-function getFrequentAmountPresetsByName(chargeName){
-
-let map={}
-
-charges.forEach(c=>{
-
-if(c.name!==chargeName)return
-
-let key=`${c.amount}__${c.currency}`
-
-if(!map[key]){
-map[key]={
-amount:c.amount,
-currency:c.currency,
-count:0
-}
-}
-
-map[key].count++
-
-})
-
-return Object.values(map).filter(item=>item.count>3)
-
-}
-
-function renderAmountPresets(){
-
-let box=document.getElementById("amountPresets")
-let name=document.getElementById("name").value
-
-box.innerHTML=""
-
-if(!name)return
-
-let presets=getFrequentAmountPresetsByName(name)
-
-if(!presets.length)return
-
-presets.forEach(p=>{
-
-let b=document.createElement("button")
-b.type="button"
-b.innerText=`${p.amount} ${p.currency}`
-
-b.onclick=()=>{
-
-document.getElementById("amount").value=p.amount
-document.getElementById("currency").value=p.currency
-
-addCharge()
-closeKeyboard()
-
-}
-
-box.appendChild(b)
-
 })
 
 }
@@ -439,6 +879,9 @@ box.appendChild(b)
 function askDelete(i){
 
 deleteIndex=i
+
+let charge=charges[i]
+document.getElementById("deleteChargeDetails").innerText=formatOriginalChargeText(charge)
 document.getElementById("popup").style.display="flex"
 
 }
@@ -476,9 +919,24 @@ document.getElementById("editPopup").style.display="flex"
 
 function saveEdit(){
 
-let name=document.getElementById("editName").value
+let name=document.getElementById("editName").value.trim()
 let amount=parseFloat(document.getElementById("editAmount").value)
 let currency=document.getElementById("editCurrency").value
+
+if(!name && !document.getElementById("editAmount").value.trim()){
+showError("יש למלא שם חיוב וסכום לפני שמירת עריכה.")
+return
+}
+
+if(!name){
+showError("יש למלא שם חיוב לפני שמירת עריכה.")
+return
+}
+
+if(!document.getElementById("editAmount").value.trim() || Number.isNaN(amount)){
+showError("יש למלא סכום תקין לפני שמירת עריכה.")
+return
+}
 
 charges[editIndex]={name,amount,currency}
 
@@ -691,8 +1149,6 @@ closeKeyboard()
 }
 
 })
-
-document.getElementById("name").addEventListener("input",renderAmountPresets)
 
 setupDesktopAmountInputs()
 render()
