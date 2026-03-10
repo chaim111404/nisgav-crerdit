@@ -316,12 +316,14 @@ justify-content:flex-start;
 <div class="card">
 
 <label>שם חיוב</label>
-<input id="name">
+<input id="name" oninput="renderFrequentAmounts()">
 
 <div class="recent" id="recent"></div>
 
 <label>סכום</label>
 <input id="amount" readonly onclick="handleAmountInputClick('amount')">
+
+<div class="recent" id="frequentAmounts"></div>
 
 <label>מטבע</label>
 <select id="currency" onclick="closeKeyboard()">
@@ -518,17 +520,7 @@ return "לא ניתן להוסיף חיוב כי הסכום שהוזן אינו 
 return ""
 }
 
-function addCharge(){
-
-let name=document.getElementById("name").value.trim()
-let amount=parseFloat(document.getElementById("amount").value)
-let currency=document.getElementById("currency").value
-let validationMessage=getAddChargeValidationMessage()
-
-if(validationMessage){
-showError(validationMessage)
-return
-}
+function finalizeAddCharge(name,amount,currency){
 
 charges.push({name,amount,currency})
 
@@ -545,6 +537,80 @@ document.getElementById("currency").value="ILS"
 visibleChargesCount=10
 
 render()
+
+}
+
+function addCharge(){
+
+let name=document.getElementById("name").value.trim()
+let amount=parseFloat(document.getElementById("amount").value)
+let currency=document.getElementById("currency").value
+let validationMessage=getAddChargeValidationMessage()
+
+if(validationMessage){
+showError(validationMessage)
+return
+}
+
+finalizeAddCharge(name,amount,currency)
+
+}
+
+function addSuggestedCharge(name,amount,currency){
+finalizeAddCharge(name,amount,currency)
+}
+
+function getFrequentAmountSuggestionsByName(name){
+
+let cleanName=String(name||"").trim()
+
+if(!cleanName){
+return []
+}
+
+let data={}
+
+charges.forEach(c=>{
+
+if(c.name!==cleanName){
+return
+}
+
+let key=`${c.name}|||${normalizeDisplayAmount(c.amount)}|||${c.currency}`
+
+if(!data[key]){
+data[key]={
+name:c.name,
+amount:c.amount,
+currency:c.currency,
+count:0
+}
+}
+
+data[key].count++
+
+})
+
+return Object.values(data)
+.filter(item=>item.count>=3)
+.sort((a,b)=>b.count-a.count)
+
+}
+
+function renderFrequentAmounts(){
+
+let wrap=document.getElementById("frequentAmounts")
+wrap.innerHTML=""
+
+let currentName=document.getElementById("name").value.trim()
+let suggestions=getFrequentAmountSuggestionsByName(currentName)
+
+suggestions.forEach(item=>{
+let b=document.createElement("button")
+b.innerText=`${item.name} ${normalizeDisplayAmount(item.amount)} ${currencySymbols[item.currency]||item.currency}`
+b.onclick=()=>addSuggestedCharge(item.name,item.amount,item.currency)
+wrap.appendChild(b)
+})
 
 }
 
@@ -576,6 +642,11 @@ render()
 
 function loadMoreCharges(){
 visibleChargesCount+=10
+render()
+}
+
+function collapseChargesView(){
+visibleChargesCount=10
 render()
 }
 
@@ -676,7 +747,7 @@ total+=ils
 currencySummary[c.currency]+=c.amount
 })
 
-let filteredCharges=getSmartFilteredCharges()
+let filteredCharges=getSmartFilteredCharges().slice().reverse()
 let visibleCharges=filteredCharges.slice(0,visibleChargesCount)
 
 if(filteredCharges.length===0){
@@ -684,7 +755,7 @@ list.innerHTML=`<div class="noResults">אין תוצאות</div>`
 }else{
 visibleCharges.forEach(c=>{
 
-let originalIndex=charges.indexOf(c)
+let originalIndex=charges.lastIndexOf(c)
 let ils=c.amount*rates[c.currency]
 
 let div=document.createElement("div")
@@ -706,10 +777,17 @@ list.appendChild(div)
 
 })
 
-if(filteredCharges.length>visibleChargesCount){
+if(filteredCharges.length>10){
 let loadMore=document.createElement("div")
 loadMore.className="loadMoreWrap"
-loadMore.innerHTML=`<button class="loadMoreButton" onclick="loadMoreCharges()">טען עוד</button>`
+
+let buttonsHtml=`<button class="loadMoreButton" onclick="collapseChargesView()">צמצם תצוגה</button>`
+
+if(filteredCharges.length>visibleChargesCount){
+buttonsHtml=`<button class="loadMoreButton" onclick="loadMoreCharges()">טען עוד</button> <button class="loadMoreButton" onclick="collapseChargesView()">צמצם תצוגה</button>`
+}
+
+loadMore.innerHTML=buttonsHtml
 list.appendChild(loadMore)
 }
 }
@@ -719,6 +797,7 @@ renderSummary(currencySummary)
 renderGraph(filteredCharges)
 renderRecent()
 renderCategorySummary()
+renderFrequentAmounts()
 
 }
 
@@ -907,7 +986,10 @@ div.innerHTML=""
 recent.forEach(r=>{
 let b=document.createElement("button")
 b.innerText=r
-b.onclick=()=>document.getElementById("name").value=r
+b.onclick=()=>{
+document.getElementById("name").value=r
+renderFrequentAmounts()
+}
 div.appendChild(b)
 })
 
